@@ -212,3 +212,35 @@ $ sqlite3 baltimore.db "CREATE INDEX i ON lots (id);"
 
 $ everylot everylotbaltimore baltimore.db --search-format "{address}, Baltimore, MD"
 ````
+
+### Walkthrough for St. Louis
+
+This example fully automates the creation of the tables needed to run a bot for St. Louis, MO
+
+````
+# download the shapefiles and parcel data, merge it all together, and dump it into a database
+$ mkdir tmp && \
+curl -L https://www.stlouis-mo.gov/data/upload/data-files/prcl_shape.zip -o tmp/prcl.zip && \
+cd tmp && \
+unzip prcl.zip && \
+curl -LO https://www.stlouis-mo.gov/data/upload/data-files/par.zip && \
+unzip par.zip && \
+mv par.dbf prcl.dbf && \
+ogr2ogr -f SQLite prcl_raw.db prcl.shp -t_srs EPSG:4326
+
+# create a table with everything you'd need to run an stl everylot bot
+# http://fakeisthenewreal.org/everylot/
+$ ogr2ogr -f SQLite prcl.db prcl_raw.db -nln lots -dialect sqlite \
+    -sql "SELECT handle AS id, \
+                 ROUND(X(ST_Centroid(GeomFromWKB(Geometry))), 5) lon, \
+                 ROUND(Y(ST_Centroid(GeomFromWKB(Geometry))), 5) lat, \
+                 siteaddr AS address, \
+                 zip, \
+                 nbrhd, \
+                 0 floors, \
+                 0 tweeted \
+            FROM prcl \
+        ORDER BY handle ASC"
+        
+$ everylot everylotstl prcl.db --search-format '{address}, St. Louis, MO'
+````
