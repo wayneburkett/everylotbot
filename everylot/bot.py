@@ -17,6 +17,8 @@
 import argparse
 import logging
 import twitter_bot_utils as tbu
+import tweepy
+from tweepy.error import TweepError
 from . import __version__ as version
 from .everylot import EveryLot
 
@@ -51,23 +53,39 @@ def main():
     logger.debug('%s addresss: %s zip: %s', el.lot['id'], el.lot.get('address'), el.lot.get('zip'))
     logger.debug('db location %s,%s', el.lot['lat'], el.lot['lon'])
 
-    # Get the streetview image and upload it
-    # ("sv.jpg" is a dummy value, since filename is a required parameter).
-    image = el.get_streetview_image(api.config['streetview'])
-    media = api.media_upload('sv.jpg', file=image)
+    update = create_update(el, api, logger)
 
+    if not args.dry_run:
+        if update is not None:
+            logger.debug("posting")
+            status = api.update_status(**update)
+            try:
+                el.mark_as_tweeted(status.id)
+            except AttributeError:
+                el.mark_as_tweeted('1')
+        else:
+            logger.error('update not created')
+            el.mark_as_tweeted('1')
+
+def create_update(el, api, logger):
+    # Get the streetview image and upload it
+    image = el.get_streetview_image(api.config['streetview'])
+    try:
+        # ("sv.jpg" is a dummy value, since filename is a required parameter).
+        media = api.media_upload('sv.jpg', file=image)
+        return compose(el, media, logger)
+    except TweepError as e:
+        logger.error('error creating media %s',e.reason)
+
+    # something went wrong
+    return None
+
+def compose(el, media, logger):
     # compose an update with all the good parameters
     # including the media string.
     update = el.compose(media.media_id_string)
     logger.info(update['status'])
-
-    if not args.dry_run:
-        logger.debug("posting")
-        status = api.update_status(**update)
-        try:
-            el.mark_as_tweeted(status.id)
-        except AttributeError:
-            el.mark_as_tweeted('1')
+    return update
 
 if __name__ == '__main__':
     main()
