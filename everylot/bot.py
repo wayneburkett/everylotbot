@@ -75,7 +75,7 @@ def create_update(el, api, logger):
         media = api.media_upload('sv.jpg', file=image)
         return compose(el, media, logger)
     except TweepError as e:
-        logger.error('error creating media %s',e.reason)
+        logger.error('error creating media %s', e.reason)
 
     # something went wrong
     return None
